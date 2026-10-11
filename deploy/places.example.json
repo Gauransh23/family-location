@@ -1,0 +1,6 @@
+{
+  "places": [
+    {"name": "Home", "lat": null, "lon": null, "radius_m": 150},
+    {"name": "School", "lat": null, "lon": null, "radius_m": 250}
+  ]
+}

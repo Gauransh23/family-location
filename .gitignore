@@ -1,0 +1,7 @@
+generated/
+deploy/.env
+backups/
+data/
+.DS_Store
+__pycache__/
+*.pyc

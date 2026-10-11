@@ -1,0 +1,40 @@
+{
+	auto_https off
+	admin off
+}
+
+:8080 {
+	encode gzip
+	header {
+		X-Robots-Tag "noindex, nofollow, noarchive"
+		Referrer-Policy "no-referrer"
+		X-Content-Type-Options "nosniff"
+		-Server
+	}
+	basic_auth {
+		import /etc/caddy/map-auth.caddy
+	}
+	reverse_proxy board:8787
+}
+
+:8088 {
+	encode gzip
+	header {
+		X-Robots-Tag "noindex, nofollow, noarchive"
+		Referrer-Policy "no-referrer"
+		X-Content-Type-Options "nosniff"
+		-Server
+	}
+	basic_auth {
+		import /etc/caddy/map-auth.caddy
+	}
+	handle /api/* {
+		reverse_proxy recorder:8083
+	}
+	handle /ws/* {
+		reverse_proxy recorder:8083
+	}
+	handle {
+		reverse_proxy frontend:80
+	}
+}

@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Family</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --ink: #1c1915;
+      --muted: #5c564c;
+      --line: #e4ddd2;
+      --paper: #f6f1e8;
+      --card: #fffdf8;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --ink: #f4efe6;
+        --muted: #b7ad9f;
+        --line: #3a342c;
+        --paper: #16130f;
+        --card: #221e19;
+      }
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+      background: var(--paper);
+      color: var(--ink);
+    }
+    main {
+      max-width: 36rem;
+      margin: 0 auto;
+      padding: 2.5rem 1.25rem 4rem;
+    }
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      gap: 1rem;
+      margin-bottom: 1.5rem;
+    }
+    h1 {
+      font-size: 1.35rem;
+      font-weight: 600;
+      margin: 0;
+      letter-spacing: 0.01em;
+    }
+    a {
+      color: inherit;
+    }
+    ul {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      border-top: 1px solid var(--line);
+    }
+    li {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 0.35rem 1rem;
+      padding: 1rem 0;
+      border-bottom: 1px solid var(--line);
+    }
+    .name { font-size: 1.35rem; }
+    .place { grid-column: 1; color: var(--muted); font-size: 1.05rem; }
+    .time {
+      grid-column: 2;
+      grid-row: 1 / span 2;
+      align-self: center;
+      font-variant-numeric: tabular-nums;
+      font-size: 1.05rem;
+    }
+    footer {
+      margin-top: 2rem;
+      color: var(--muted);
+      font-size: 0.95rem;
+      line-height: 1.45;
+    }
+    .warn { color: var(--muted); }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <h1>Family</h1>
+      <a id="map" hidden href="">Map</a>
+    </header>
+    <p id="status" class="warn" hidden></p>
+    <ul id="people"></ul>
+    <footer id="legend"></footer>
+  </main>
+  <script>
+    const list = document.querySelector("#people");
+    const legend = document.querySelector("#legend");
+    const status = document.querySelector("#status");
+    const map = document.querySelector("#map");
+
+    function line(person) {
+      const item = document.createElement("li");
+      const name = document.createElement("div");
+      name.className = "name";
+      name.textContent = person.display;
+      const place = document.createElement("div");
+      place.className = "place";
+      place.textContent = person.place;
+      const time = document.createElement("div");
+      time.className = "time";
+      time.textContent = person.time || "";
+      item.append(name, place, time);
+      return item;
+    }
+
+    async function refresh() {
+      const response = await fetch("/api/board", { cache: "no-store" });
+      if (!response.ok) throw new Error(String(response.status));
+      const data = await response.json();
+      legend.textContent = data.legend || "";
+      if (data.map_url) {
+        map.href = data.map_url;
+        map.hidden = false;
+      }
+      status.hidden = !data.recorder_error;
+      status.textContent = data.recorder_error
+        ? "The house page could not read stored reports."
+        : "";
+      list.replaceChildren(...(data.people || []).map(line));
+    }
+
+    refresh().catch(() => {
+      status.hidden = false;
+      status.textContent = "The house page could not read stored reports.";
+    });
+    setInterval(() => {
+      refresh().catch(() => {});
+    }, 30000);
+  </script>
+</body>
+</html>

@@ -1,0 +1,115 @@
+name: family-location
+
+services:
+  mosquitto:
+    image: eclipse-mosquitto:2.1.2-alpine@sha256:38c0da4f2ef84284d47b3b3eeea1cb3bdeabe81ee10caf0cd5c5ff61ee3ea408
+    restart: unless-stopped
+    user: "0:0"
+    entrypoint: ["/bin/sh", "/opt/family/mosquitto-entrypoint.sh"]
+    environment:
+      TZ: ${TZ:?set TZ}
+    ports:
+      - "127.0.0.1:1883:1883"
+    volumes:
+      - ./mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+      - ./mosquitto-entrypoint.sh:/opt/family/mosquitto-entrypoint.sh:ro
+      - ../generated/mosquitto:/opt/family-secrets:ro
+      - mosquitto-data:/mosquitto/data
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "mosquitto_sub",
+          "-h",
+          "127.0.0.1",
+          "-p",
+          "1883",
+          "-u",
+          "recorder",
+          "-P",
+          "${RECORDER_MQTT_PASSWORD:?set RECORDER_MQTT_PASSWORD}",
+          "-t",
+          "$$SYS/broker/version",
+          "-C",
+          "1",
+          "-W",
+          "5",
+        ]
+      interval: 15s
+      timeout: 10s
+      retries: 8
+      start_period: 10s
+
+  recorder:
+    image: owntracks/recorder:1.0.4@sha256:bb292a481c94ef40bde26f52c8d3868d1395bd2da15bc9405be889e13f686a1b
+    restart: unless-stopped
+    entrypoint: ["/bin/sh", "/opt/family/recorder-entrypoint.sh"]
+    environment:
+      TZ: ${TZ:?set TZ}
+      OTR_HOST: mosquitto
+      OTR_PORT: "1883"
+      OTR_USER: recorder
+      OTR_PASS: ${RECORDER_MQTT_PASSWORD:?set RECORDER_MQTT_PASSWORD}
+      OTR_CLIENTID: family-recorder
+      OTR_HTTPHOST: 0.0.0.0
+      OTR_HTTPPORT: "8083"
+    volumes:
+      - ./recorder-entrypoint.sh:/opt/family/recorder-entrypoint.sh:ro
+      - recorder-store:/store
+    depends_on:
+      mosquitto:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8083/api/0/last"]
+      interval: 20s
+      timeout: 5s
+      retries: 8
+      start_period: 15s
+
+  frontend:
+    image: owntracks/frontend:2.15.3@sha256:efa313bdec583939f6edc70eb148670a8bba1a5aed0508a326f5b2f2751d0861
+    restart: unless-stopped
+    environment:
+      TZ: ${TZ:?set TZ}
+      SERVER_HOST: recorder
+      SERVER_PORT: "8083"
+    volumes:
+      - ./frontend/config.js:/usr/share/nginx/html/config/config.js:ro
+    depends_on:
+      recorder:
+        condition: service_healthy
+
+  board:
+    build: ../board
+    restart: unless-stopped
+    environment:
+      TZ: ${TZ:?set TZ}
+      RECORDER_URL: http://recorder:8083
+      PLACES_FILE: /config/places.json
+      ROSTER_FILE: /config/roster.json
+      MAP_URL: https://${TAILNET_HOST:?set TAILNET_HOST}:8443/
+    volumes:
+      - ../generated/places.json:/config/places.json:ro
+      - ../generated/roster.json:/config/roster.json:ro
+    depends_on:
+      recorder:
+        condition: service_healthy
+
+  caddy:
+    image: caddy:2.10.2-alpine@sha256:4c6e91c6ed0e2fa03efd5b44747b625fec79bc9cd06ac5235a779726618e530d
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8080:8080"
+      - "127.0.0.1:8088:8088"
+    environment:
+      TZ: ${TZ:?set TZ}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ../generated/caddy/map-auth.caddy:/etc/caddy/map-auth.caddy:ro
+    depends_on:
+      - board
+      - frontend
+
+volumes:
+  mosquitto-data:
+  recorder-store:

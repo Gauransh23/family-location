@@ -1,0 +1,5 @@
+# Optional: read the recorder directly on this computer while checking storage.
+services:
+  recorder:
+    ports:
+      - "127.0.0.1:8083:8083"
